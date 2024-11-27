@@ -1,6 +1,8 @@
 import streamlit as st
-from openai import OpenAI
-
+import requests
+import pandas as pd
+import streamlit as st
+import matplotlib.pyplot as plt
 # Show title and description.
 st.title("💬 Chatbot")
 st.write(
@@ -9,48 +11,62 @@ st.write(
     "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# Replace with your API endpoint URL
+API_URL = "https://yourapi.com/your-endpoint"
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+def fetch_data_from_api():
+    """Fetches data from the API and returns it as a pandas DataFrame."""
+    try:
+        # Send a GET request to the API
+        response = requests.get(API_URL)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            # Parse JSON response
+            data = response.json()
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+            # Assuming the API returns a list of records
+            # You can modify this part depending on the structure of your API response
+            df = pd.DataFrame(data, columns=["report_date", "installs_volume"])
+            return df
+        else:
+            st.error(f"Error fetching data from API. Status code: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"Error fetching data from API: {e}")
+        return None
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+def plot_data(df):
+    """Plots the data using matplotlib."""
+    st.subheader('Installs Volume Over Time')
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+    # Plotting with matplotlib
+    plt.figure(figsize=(10, 6))
+    plt.plot(df['report_date'], df['installs_volume'], marker='o', linestyle='-', color='b')
+    plt.xlabel('Report Date')
+    plt.ylabel('Installs Volume')
+    plt.title('Installs Volume Over the Last 3 Months')
+    plt.xticks(rotation=45)
+    plt.grid(True)
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # Show plot in the Streamlit app
+    st.pyplot(plt)
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+def main():
+    """Main function to run the Streamlit app."""
+    st.title('Data Visualization from API')
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    # Fetch data from the API
+    df = fetch_data_from_api()
+
+    if df is not None:
+        # Display the fetched data
+        st.write("Fetched Data:", df)
+
+        # Plot the data
+        plot_data(df)
+    else:
+        st.error("Failed to fetch data from the API.")
+
+if __name__ == "__main__":
+    main()
